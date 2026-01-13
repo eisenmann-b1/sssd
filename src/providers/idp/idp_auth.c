@@ -627,6 +627,11 @@ create_refresh_token_timer(struct idp_auth_ctx *auth_ctx, struct pam_data *pd,
     struct timeval refresh_timestamp = {.tv_sec = issued_at +
                                                   (expires_at - issued_at) / 2};
 
+    if (!dp_opt_get_bool(idp_auth_ctx->idp_options, IDP_AUTO_REFRESH)) {
+        DEBUG(SSSDBG_TRACE_ALL, "Not scheduling token refresh: %s is not enabled.\n", IDP_AUTO_REFRESH);
+        return EOK;
+    }
+
     DEBUG(SSSDBG_TRACE_ALL, "Scheduling token refresh.\n");
 
     refresh_data = talloc_zero(auth_ctx, struct idp_refresh_data);
