@@ -22,6 +22,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <jansson.h>
+#include <stdbool.h>
+#include <jose/b64.h>
+
 #include "src/providers/data_provider.h"
 
 #include "src/providers/idp/idp_common.h"
@@ -56,6 +60,197 @@ static void token_refresh_table_delete_cb(hash_entry_t *item,
     }
 
     talloc_free(refresh_data);
+}
+
+static int get_jwt_payload(const char *str, json_t **out) {
+    const char *sep;
+    const char *payload_str;
+    size_t payload_len;
+    json_t *payload_obj;
+
+    DEBUG(SSSDBG_TRACE_ALL, "@@@ Got JWT: [%s]\n", str);
+
+    sep = strchr(str, '.');
+    if (sep == NULL) {
+        DEBUG(SSSDBG_OP_FAILURE, "Missing first dot in JWT.\n");
+        return EINVAL;
+    }
+    sep++;
+
+    payload_str = sep;
+    DEBUG(SSSDBG_TRACE_ALL, "@@@ Got start of payload: [%s]\n", payload_str);
+
+    sep = strchr(sep, '.');
+    if (sep == NULL) {
+        DEBUG(SSSDBG_OP_FAILURE, "Missing second dot in JWT.\n");
+        return EINVAL;
+    }
+    payload_len = sep - payload_str;
+    DEBUG(SSSDBG_TRACE_ALL, "@@@ Got payload: [%.*s]\n", (int)payload_len, payload_str);
+
+    payload_obj = jose_b64_dec_load(json_stringn(payload_str, payload_len));
+    if (payload_obj == NULL) {
+        DEBUG(SSSDBG_OP_FAILURE, "Failed decoding JWT payload.\n");
+        return EINVAL;
+    }
+
+    *out = payload_obj;
+    return EOK;
+}
+
+static int get_json_timestamp(const json_t *obj, const char *attr, time_t *out) {
+    json_t *attr_obj;
+
+    attr_obj = json_object_get(obj, attr);
+    if (attr_obj == NULL) {
+        DEBUG(SSSDBG_OP_FAILURE, "Failed getting JSON attribute [%s]\n", attr);
+        return EINVAL;
+    }
+
+    if (!json_is_integer(attr_obj)) {
+        DEBUG(SSSDBG_OP_FAILURE, "Not integer type for JSON attribute [%s]\n", attr);
+        return EINVAL;
+    }
+
+    *out = json_integer_value(attr_obj);
+    return EOK;
+}
+
+static int get_jwt_timestamps(const char *str, time_t *iat_out, time_t *exp_out) {
+    json_t *payload;
+    int ret;
+
+    ret = get_jwt_payload(str, &payload);
+    if (ret != EOK) {
+        DEBUG(SSSDBG_OP_FAILURE, "Failed getting JWT payload.\n");
+        goto done;
+    }
+
+    if (iat_out != NULL) {
+        ret = get_json_timestamp(payload, "iat", iat_out);
+        if (ret != EOK) {
+            DEBUG(SSSDBG_OP_FAILURE, "Failed getting JWT issued-at timestamp.\n");
+            goto cleanup;
+        }
+    }
+
+    if (exp_out != NULL) {
+        ret = get_json_timestamp(payload, "exp", exp_out);
+        if (ret != EOK) {
+            DEBUG(SSSDBG_OP_FAILURE, "Failed getting JWT expiration timestamp.\n");
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    json_decref(payload);
+
+done:
+    return ret;
+}
+
+static bool is_jwt_expired(const char *str) {
+    time_t expires_at;
+    time_t now;
+    int ret;
+
+    ret = get_jwt_timestamps(str, NULL, &expires_at);
+    if (ret != EOK) {
+        DEBUG(SSSDBG_TRACE_ALL, "Failed getting expiration timestamp.\n");
+        return false;
+    }
+
+    now = time(NULL);
+
+    return expires_at <= now;
+}
+
+static int create_token_refresh_timers_from_cache(struct idp_auth_ctx *auth_ctx) {
+    const char *attrs[] = {
+        SYSDB_NAME,
+        SYSDB_UUID,
+        SYSDB_ACCESS_TOKEN,
+        SYSDB_REFRESH_TOKEN,
+        NULL,
+    };
+    struct ldb_message **msgs = NULL;
+    size_t msgs_count = 0;
+    int ret;
+
+    void *tmp_ctx = talloc_new(NULL);
+    if (tmp_ctx == NULL) {
+        DEBUG(SSSDBG_CRIT_FAILURE, "Failed to allocate temporary context.\n");
+        return ENOMEM;
+    }
+
+    struct pam_data *pd = create_pam_data(tmp_ctx);
+    if (pd == NULL) {
+        DEBUG(SSSDBG_CRIT_FAILURE, "Failed to create PAM data.\n");
+        ret = ENOMEM;
+        goto done;
+    }
+    /* TODO: domain stuff, pam_data wants char *  */
+    pd->domain = talloc_strdup(pd, auth_ctx->be_ctx->domain->name);
+
+    ret = sysdb_search_users(tmp_ctx, auth_ctx->be_ctx->domain,
+                             "(" SYSDB_UUID "=*)"
+                             "(" SYSDB_ACCESS_TOKEN "=*)"
+                             "(" SYSDB_REFRESH_TOKEN "=*)",
+                             attrs, &msgs_count, &msgs);
+    if (ret != EOK) {
+        if (ret != ENOENT) {
+            DEBUG(SSSDBG_OP_FAILURE, "Failed to search for cached users.\n");
+        }
+        goto done;
+    }
+
+    for (int i = 0; i < msgs_count; i++) {
+        struct ldb_message *msg = msgs[i];
+
+        char *dn = ldb_dn_canonical_string(tmp_ctx, msg->dn);
+        const char *user_name = ldb_msg_find_attr_as_string(msg, SYSDB_NAME, NULL);
+        const char *user_uuid = ldb_msg_find_attr_as_string(msg, SYSDB_UUID, NULL);
+        const char *access_token = ldb_msg_find_attr_as_string(msg, SYSDB_ACCESS_TOKEN, NULL);
+        const char *refresh_token = ldb_msg_find_attr_as_string(msg, SYSDB_REFRESH_TOKEN, NULL);
+
+        time_t issued_at, expires_at;
+
+        DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with dn: [%s]\n", dn);
+        DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with name: [%s]\n", user_name);
+        DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with uuid: [%s]\n", user_uuid);
+        DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with access token: [%s]\n", access_token);
+        DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with refresh token: [%s]\n", refresh_token);
+
+        DEBUG(SSSDBG_TRACE_ALL, "Trying to schedule token refresh for [%s].\n", user_uuid);
+        if (is_jwt_expired(refresh_token)) {
+            DEBUG(SSSDBG_TRACE_ALL, "Refresh token for user [%s] is expired.\n", user_uuid);
+            continue;
+        }
+
+        ret = get_jwt_timestamps(access_token, &issued_at, &expires_at);
+        if (ret != EOK) {
+            DEBUG(SSSDBG_TRACE_ALL, "Failed getting timestamps.\n");
+            continue;
+        }
+
+        pd->user = user_name;
+        // pd->authtok = sss_authtok_new(pd);
+        // sss_authtok_set(pd->authtok, SSS_AUTHTOK_TYPE_OAUTH2, user_name, 0);
+
+        // timers created in the past will be scheduled immediately.
+        ret = create_refresh_token_timer(auth_ctx, pd, user_uuid, issued_at, expires_at);
+        if (ret != EOK) {
+            DEBUG(SSSDBG_OP_FAILURE, "Failed creating token refresh timer.\n");
+            continue;
+        }
+    }
+
+    ret = EOK;
+
+done:
+    talloc_free(tmp_ctx);
+
+    return ret;
 }
 
 static errno_t idp_get_options(TALLOC_CTX *mem_ctx,
@@ -334,7 +529,7 @@ errno_t sssm_idp_auth_init(TALLOC_CTX *mem_ctx,
 
     auth_ctx->open_request_table = sss_ptr_hash_create(auth_ctx, NULL, NULL);
     if (auth_ctx->open_request_table == NULL) {
-        DEBUG(SSSDBG_CRIT_FAILURE, "Failed to create hash table.\n");
+        DEBUG(SSSDBG_CRIT_FAILURE, "Failed to create hash table for open requests.\n");
         ret = ENOMEM;
         goto done;
     }
@@ -350,7 +545,11 @@ errno_t sssm_idp_auth_init(TALLOC_CTX *mem_ctx,
             goto done;
         }
 
-        /* TODO: schedule refreshes for tokens that are already in cache. */
+        ret = create_token_refresh_timers_from_cache(auth_ctx);
+        if (ret != EOK) {
+            DEBUG(SSSDBG_OP_FAILURE, "Failed to schedule token refreshes from cache.\n");
+            // goto done;
+        }
     }
 
     auth_ctx->scope = dp_opt_get_cstring(init_ctx->opts, IDP_AUTH_SCOPE);

@@ -4667,12 +4667,14 @@ libsss_idp_la_SOURCES = \
 libsss_idp_la_CFLAGS = \
     $(AM_CFLAGS) \
     $(JANSSON_CFLAGS) \
+    $(JOSE_CFLAGS) \
     $(NULL)
 
 libsss_idp_la_LIBADD = \
     $(SSSD_INTERNAL_LTLIBS) \
     libsss_idmap.la \
     $(JANSSON_LIBS) \
+    $(JOSE_LIBS) \
     $(NULL)
 
 libsss_idp_la_LDFLAGS = \
