@@ -348,6 +348,36 @@ errno_t sssm_idp_auth_init(TALLOC_CTX *mem_ctx,
         }
 
         /* TODO: schedule refreshes for tokens that are already in cache. */
+        {
+            const char *attrs[] = {SYSDB_NAME, SYSDB_ACCESS_TOKEN, SYSDB_REFRESH_TOKEN, NULL};
+            struct ldb_message **msgs = NULL;
+            size_t msgs_count = 0;
+
+            void *tmp_ctx = talloc_new(NULL);
+
+            ret = sysdb_search_users(tmp_ctx, be_ctx->domain,
+                                     "(" SYSDB_ACCESS_TOKEN "=*)"
+                                     "(" SYSDB_REFRESH_TOKEN "=*)",
+                                     attrs, &msgs_count, &msgs);
+            if (ret != EOK) {
+                DEBUG(SSSDBG_OP_FAILURE, "sysdb_search_users failed.\n");
+                goto done;
+            }
+
+            for (int i = 0; i < msgs_count; i++) {
+                struct ldb_message *msg = msgs[i];
+
+                char *dn = ldb_dn_canonical_string(tmp_ctx, msg->dn);
+                const char *access_token = ldb_msg_find_attr_as_string(msg, SYSDB_ACCESS_TOKEN, NULL);
+                const char *refresh_token = ldb_msg_find_attr_as_string(msg, SYSDB_REFRESH_TOKEN, NULL);
+
+                DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with dn: [%s]\n", dn);
+                DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with access token: [%s]\n", access_token);
+                DEBUG(SSSDBG_TRACE_ALL, "@@ Found user with refresh token: [%s]\n", refresh_token);
+            }
+
+            talloc_free(tmp_ctx);
+        }
     }
 
     auth_ctx->scope = dp_opt_get_cstring(init_ctx->opts, IDP_AUTH_SCOPE);
