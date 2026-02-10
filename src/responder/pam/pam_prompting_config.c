@@ -183,7 +183,7 @@ static errno_t pam_set_oauth2_prompting_options(TALLOC_CTX *tmp_ctx,
 static errno_t pam_set_prompting_options(struct confdb_ctx *cdb,
                                          const char *service_name,
                                          char **sections,
-                                         int num_sections,
+                                         size_t num_sections,
                                          const char *section_path,
                                          pam_set_prompting_fn_t *setter,
                                          struct prompt_config ***pc_list)
@@ -250,7 +250,7 @@ errno_t pam_eval_prompting_config(struct pam_ctx *pctx, struct pam_data *pd,
 {
     int ret;
     struct prompt_config **pc_list = NULL;
-    int resp_len;
+    size_t resp_len;
     uint8_t *resp_data = NULL;
     struct pam_resp_auth_type types;
 

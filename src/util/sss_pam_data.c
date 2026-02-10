@@ -186,7 +186,7 @@ void pam_print_data(int l, struct pam_data *pd)
 }
 
 int pam_add_response(struct pam_data *pd, enum response_type type,
-                     int len, const uint8_t *data)
+                     size_t len, const uint8_t *data)
 {
     struct response_data *new;
 

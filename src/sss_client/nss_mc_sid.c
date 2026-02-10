@@ -146,7 +146,7 @@ errno_t sss_nss_mc_get_sid_by_id(uint32_t id, char **sid, uint32_t *type)
 errno_t sss_nss_mc_get_id_by_sid(const char *sid, uint32_t *id, uint32_t *type)
 {
     int ret;
-    int key_len;
+    size_t key_len;
     uint32_t hash;
     uint32_t slot;
     struct sss_mc_rec *rec = NULL;

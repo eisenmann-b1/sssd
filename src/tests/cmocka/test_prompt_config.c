@@ -154,7 +154,7 @@ void test_pam_get_response_prompt_config(void **state)
 {
     int ret;
     struct prompt_config **pc_list = NULL;
-    int len;
+    size_t len;
     uint8_t *data;
 
     ret = pc_list_add_password(&pc_list, "password");
@@ -201,7 +201,7 @@ void test_pc_list_from_response(void **state)
 {
     int ret;
     struct prompt_config **pc_list = NULL;
-    int len;
+    size_t len;
     uint8_t *data;
 
     ret = pc_list_add_password(&pc_list, "password");

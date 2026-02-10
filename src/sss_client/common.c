@@ -276,14 +276,14 @@ static enum sss_status sss_cli_send_req(enum sss_cli_command cmd,
 
 static enum sss_status sss_cli_recv_rep(enum sss_cli_command cmd,
                                         int timeout,
-                                        uint8_t **_buf, int *_len,
+                                        uint8_t **_buf, size_t *_len,
                                         int *errnop)
 {
     uint32_t header[4];
     size_t datarecv;
     uint8_t *buf = NULL;
     bool pollhup = false;
-    int len;
+    size_t len;
     int ret;
 
     header[0] = SSS_NSS_HEADER_SIZE; /* until we know the real length */
@@ -298,7 +298,7 @@ static enum sss_status sss_cli_recv_rep(enum sss_cli_command cmd,
 
     while (datarecv < header[0]) {
         struct pollfd pfd;
-        int bufrecv;
+        size_t bufrecv;
         int res, error;
 
         pfd.fd = sss_cli_sd_get();
@@ -441,7 +441,7 @@ static enum sss_status sss_cli_make_request_nochecks(
 {
     enum sss_status ret;
     uint8_t *buf = NULL;
-    int len = 0;
+    size_t len = 0;
 
     /* send data */
     ret = sss_cli_send_req(cmd, rd, timeout, errnop);

@@ -96,7 +96,7 @@ errno_t copy_pam_data(TALLOC_CTX *mem_ctx, struct pam_data *old_pd,
 void pam_print_data(int l, struct pam_data *pd);
 int pam_add_response(struct pam_data *pd,
                      enum response_type type,
-                     int len, const uint8_t *data);
+                     size_t len, const uint8_t *data);
 
 /**
  * @brief Get the selected response type data from the response_data linked

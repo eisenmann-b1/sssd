@@ -103,7 +103,7 @@ static size_t add_string_item(enum pam_item_type type, const char *str,
 
 int pack_message_v3(struct pam_items *pi, size_t *size, uint8_t **buffer)
 {
-    int len;
+    size_t len;
     uint8_t *buf;
     size_t rp;
 

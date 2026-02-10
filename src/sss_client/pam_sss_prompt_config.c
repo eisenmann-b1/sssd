@@ -635,8 +635,8 @@ done:
     return ret;
 }
 
-errno_t pam_get_response_prompt_config(struct prompt_config **pc_list, int *len,
-                                       uint8_t **data)
+errno_t pam_get_response_prompt_config(struct prompt_config **pc_list,
+                                       size_t *len, uint8_t **data)
 {
     size_t c;
     size_t l = 0;

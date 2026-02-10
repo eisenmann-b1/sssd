@@ -716,8 +716,8 @@ errno_t pc_list_add_eidp(struct prompt_config ***pc_list,
                          const char *prompt_init, const char *prompt_link);
 errno_t pc_list_add_smartcard(struct prompt_config ***pc_list,
                               const char *prompt_init, const char *prompt_pin);
-errno_t pam_get_response_prompt_config(struct prompt_config **pc_list, int *len,
-                                       uint8_t **data);
+errno_t pam_get_response_prompt_config(struct prompt_config **pc_list,
+                                       size_t *len, uint8_t **data);
 errno_t pc_list_from_response(int size, uint8_t *buf,
                               struct prompt_config ***pc_list);
 
