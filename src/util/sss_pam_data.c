@@ -190,6 +190,8 @@ int pam_add_response(struct pam_data *pd, enum response_type type,
 {
     struct response_data *new;
 
+    if (len < 0) return EINVAL;
+
     new = talloc(pd, struct response_data);
     if (new == NULL) return ENOMEM;
 

@@ -1095,6 +1095,11 @@ static int eval_response(pam_handle_t *pamh, size_t buflen, uint8_t *buf,
         memcpy(&len, buf+p, sizeof(int32_t));
         p += sizeof(int32_t);
 
+        if (len < 0) {
+            D(("response buffer length is negative"));
+            return PAM_BUF_ERR;
+        }
+
         if (buflen < (p + len)) {
             D(("response buffer is too small"));
             return PAM_BUF_ERR;

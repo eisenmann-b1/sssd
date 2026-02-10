@@ -805,7 +805,7 @@ errno_t pc_list_from_response(int size, uint8_t *buf,
     char *str;
     char *str2;
 
-    if (buf == NULL || size < 3 * sizeof(uint32_t)) {
+    if (buf == NULL || size < 0 || size < 3 * sizeof(uint32_t)) {
         return EINVAL;
     }
 
