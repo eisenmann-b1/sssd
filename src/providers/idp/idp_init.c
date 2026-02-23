@@ -173,6 +173,7 @@ static int create_token_refresh_timers_from_cache(struct idp_auth_ctx *auth_ctx)
         SYSDB_REFRESH_TOKEN,
         NULL,
     };
+    struct sss_domain_info *dom = auth_ctx->be_ctx->domain;
     struct ldb_message **msgs = NULL;
     size_t msgs_count = 0;
     int ret;
@@ -183,16 +184,7 @@ static int create_token_refresh_timers_from_cache(struct idp_auth_ctx *auth_ctx)
         return ENOMEM;
     }
 
-    struct pam_data *pd = create_pam_data(tmp_ctx);
-    if (pd == NULL) {
-        DEBUG(SSSDBG_CRIT_FAILURE, "Failed to create PAM data.\n");
-        ret = ENOMEM;
-        goto done;
-    }
-    /* TODO: domain stuff, pam_data wants char *  */
-    pd->domain = talloc_strdup(pd, auth_ctx->be_ctx->domain->name);
-
-    ret = sysdb_search_users(tmp_ctx, auth_ctx->be_ctx->domain,
+    ret = sysdb_search_users(tmp_ctx, dom,
                              "(" SYSDB_UUID "=*)"
                              "(" SYSDB_ACCESS_TOKEN "=*)"
                              "(" SYSDB_REFRESH_TOKEN "=*)",
@@ -233,12 +225,8 @@ static int create_token_refresh_timers_from_cache(struct idp_auth_ctx *auth_ctx)
             continue;
         }
 
-        pd->user = user_name;
-        // pd->authtok = sss_authtok_new(pd);
-        // sss_authtok_set(pd->authtok, SSS_AUTHTOK_TYPE_OAUTH2, user_name, 0);
-
         // timers created in the past will be scheduled immediately.
-        ret = create_refresh_token_timer(auth_ctx, pd, user_uuid, issued_at, expires_at);
+        ret = create_refresh_token_timer(auth_ctx, dom->name, user_name, user_uuid, issued_at, expires_at);
         if (ret != EOK) {
             DEBUG(SSSDBG_OP_FAILURE, "Failed creating token refresh timer.\n");
             continue;
