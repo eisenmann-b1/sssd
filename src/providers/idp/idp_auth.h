@@ -55,14 +55,6 @@ struct idp_refresh_data {
 };
 
 struct tevent_req *
-idp_auth_send(TALLOC_CTX *mem_ctx,
-              struct tevent_context *ev,
-              struct be_ctx *be_ctx,
-              struct idp_auth_ctx *idp_auth_ctx,
-              struct pam_data *pd,
-              struct sss_domain_info *dom);
-
-struct tevent_req *
 idp_pam_auth_handler_send(TALLOC_CTX *mem_ctx,
                           struct idp_auth_ctx *auth_ctx,
                           struct pam_data *pd,
