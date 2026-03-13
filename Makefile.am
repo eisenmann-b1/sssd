@@ -3120,6 +3120,7 @@ ad_common_tests_LDFLAGS = \
 ad_common_tests_LDADD = \
     $(CMOCKA_LIBS) \
     $(SSSD_LIBS) \
+    $(KEYUTILS_LIBS) \
     $(NDR_NBT_LIBS) \
     $(NDR_KRB5PAC_LIBS) \
     $(KRB5_LIBS) \
@@ -3566,6 +3567,7 @@ test_ipa_subdom_server_LDFLAGS = \
 test_ipa_subdom_server_LDADD = \
     $(CMOCKA_LIBS) \
     $(SSSD_LIBS) \
+    $(KEYUTILS_LIBS) \
     $(KRB5_LIBS) \
     $(OPENLDAP_LIBS) \
     $(SSSD_INTERNAL_LTLIBS) \
